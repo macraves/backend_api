@@ -1,0 +1,3 @@
+limiter = Limiter(app, key_func=get_remote_address)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: Limiter.__init__() got multiple values for argument 'key_func'

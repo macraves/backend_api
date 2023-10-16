@@ -3,15 +3,26 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 from backend_methods import add_post, validate_post
 
+# from flask_limiter import Limiter
+# from flask_limiter.util import get_remote_address
+
 app = Flask(__name__)
+# limiter = Limiter(app, key_func=get_remote_address)
+
+# Set a rate limit for all routes (e.g., 10 requests per minute)
+# limiter.limit("10 per minute")(app)
 CORS(app)  # This will enable CORS for all routes
 
 POSTS = [
-    {"id": 1, "title": "First post", "content": "This is the first post."},
-    {"id": 2, "title": "Second post", "content": "This is the second post."},
+    {"id": 1, "title": "abcdef", "content": "zwyt."},
+    {"id": 2, "title": "dcba", "content": "twu"},
 ]
 
 
+# Attention here !!!
+# limiter = Limiter(app, key_func=get_remote_address)
+#               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+# TypeError: Limiter.__init__() got multiple values for argument 'key_func'
 class CustomError(Exception):
     """Custom error class."""
 
@@ -29,9 +40,28 @@ def lower_posts_strings(posts: list):
 
 
 @app.route("/api/posts", methods=["GET"])
+# @limiter.limit("5 per minute")
 def get_books():
     """Get all posts."""
-    return jsonify(POSTS)
+    page = request.args.get("page", default=1, type=int)
+    limit = request.args.get("limit", default=20, type=int)
+    start_index = (page - 1) * limit
+    end_index = page * limit
+    boolean = {"asc": False, "desc": True}
+    sort = request.args.get("sort", "").strip().lower()
+    direction = request.args.get("direction", "").strip().lower()
+    if sort or direction:
+        if direction.strip().lower() in ("asc", "desc") and sort.strip().lower() in (
+            "title",
+            "content",
+            "id",
+        ):
+            return jsonify(
+                sorted(POSTS, key=lambda post: post[sort], reverse=boolean[direction])
+            )
+        raise CustomError("Invalid sort or direction", 400)
+
+    return jsonify(POSTS[start_index:end_index])
 
 
 @app.route("/api/posts/search", methods=["GET"])
@@ -53,7 +83,7 @@ def search_posts():
     if title and content == "":
         filtered_posts = [post for post in posts if title in post["title"]]
         return jsonify(filtered_posts)
-    raise CustomError("Invalid search request", 400)
+    return []
 
 
 @app.route("/api/posts", methods=["POST"])

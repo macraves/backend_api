@@ -20,10 +20,40 @@ class CustomError(Exception):
         self.status_code = status_code
 
 
+def lower_posts_strings(posts: list):
+    """Ignores whitespaces and applies title method"""
+    for post in posts:
+        post["title"] = post["title"].strip().lower()
+        post["content"] = post["content"].strip().lower()
+    return posts
+
+
 @app.route("/api/posts", methods=["GET"])
-def get_posts():
-    """Return all posts."""
+def get_books():
+    """Get all posts."""
     return jsonify(POSTS)
+
+
+@app.route("/api/posts/search", methods=["GET"])
+def search_posts():
+    """Search posts by title or content."""
+    posts = lower_posts_strings(POSTS)
+    title = request.args.get("title", "").strip().lower()
+    content = request.args.get("content", "").strip().lower()
+    if title and content:
+        filtered_posts = [
+            post
+            for post in posts
+            if title in post["title"] or content in post["content"]
+        ]
+        return jsonify(filtered_posts)
+    if title == "" and content:
+        filtered_posts = [post for post in posts if content in post["content"]]
+        return jsonify(filtered_posts)
+    if title and content == "":
+        filtered_posts = [post for post in posts if title in post["title"]]
+        return jsonify(filtered_posts)
+    raise CustomError("Invalid search request", 400)
 
 
 @app.route("/api/posts", methods=["POST"])
@@ -34,7 +64,7 @@ def handle_posts():
     if post:
         POSTS.append(post)
         return jsonify(POSTS)
-    raise CustomError({"message": "Bad Data Structure", "method": "PUT"}, 400)
+    raise CustomError("Bad Data Structure for POST", 400)
 
 
 @app.route("/api/posts/<int:post_id>", methods=["DELETE"])
@@ -44,24 +74,22 @@ def delete_post(post_id):
     if post:
         POSTS.remove(post)
         return jsonify(POSTS)
-    raise CustomError({f"{post_id}": "Invalid delete request"}, 404)
+    raise CustomError("Invalid DELETE request", 404)
 
 
-@app.route("/api/posts", methods=["PUT"])
+@app.route("/api/posts/<int:post_id>", methods=["PUT"])
 def update_post(post_id):
     """Update post by id."""
     received_post = request.get_json()
     valid_post = validate_post(received_post, POSTS)
     post = next((post for post in POSTS if post["id"] == post_id), None)
     if post and valid_post:
+        valid_post["id"] = post_id
         pop_post = POSTS.pop(POSTS.index(post))
-        pop_post = valid_post
-        POSTS.append(pop_post)
+        del pop_post
+        POSTS.append(valid_post)
         return jsonify(POSTS)
-    raise CustomError(
-        {"message": "Put object either invalid or id coul not find", "method": "PUT"},
-        404,
-    )
+    raise CustomError("PUT object either invalid or id could not find", 404)
 
 
 @app.errorhandler(CustomError)

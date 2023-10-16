@@ -10,8 +10,8 @@ def generate_new_id(posts: list):
 
 def format_post_strings(post: dict):
     """Ignores whitespaces and applies title method"""
-    title = post.get("title", "").strip().title()
-    content = post.get("content", "").strip().title()
+    title = post.get("title", "").strip().capitalize()
+    content = post.get("content", "").strip().capitalize()
     post_id = post.get("id")
     return {"id": post_id, "title": title, "content": content}
 

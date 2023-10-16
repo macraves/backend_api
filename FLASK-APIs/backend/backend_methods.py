@@ -3,6 +3,7 @@ import os
 import json
 import random
 import string
+from datetime import datetime, timedelta
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 FOLDER_PATH = os.path.join(SCRIPT_DIR, "STORAGE")
@@ -18,17 +19,28 @@ def save_json(data):
         print(f"Reading {FILE_PATH} failed: {error}")
 
 
-def load_json():
+def load_json(version):
     """Reads the json file"""
     if not os.path.exists(FILE_PATH):
         return None
     try:
+        check_version(version)
         with open(FILE_PATH, "r", encoding="utf-8") as json_file:
             data = json.load(json_file)
         return data
     except json.JSONDecodeError as error:
         print(f"Reading {FILE_PATH} failed: {error}")
         return None
+
+
+def generate_random_date():
+    """Generates random date"""
+    start_date = datetime(2000, 1, 1)
+    end_date = datetime(2023, 12, 31)
+    random_date = start_date + timedelta(
+        days=random.randint(0, (end_date - start_date).days)
+    )
+    return random_date.strftime("%Y-%m-%d")
 
 
 def check_version(version):
@@ -47,6 +59,8 @@ def check_version(version):
         print(f"Version is updataed to {version}")
     else:
         print(f"Version is up to date {version}")
+    if version == 1.1:
+        add_new_keys_in_posts("date", generate_random_date())
 
 
 def generate_random_word(length):
@@ -109,11 +123,11 @@ def validate_post(post: dict, posts):
             return format_post_strings(post)
         else:
             # In here post has "id" key
-            post_id = post.get("id")
-            if isinstance(post_id, int):
+            if isinstance(post.get("id"), int):
+                post_id = post.get("id")
                 if next((post for post in posts if post["id"] == post_id), None):
                     # Get new id
-                    post_id = generate_new_id(posts=posts)
+                    post["id"] = generate_new_id(posts=posts)
             return format_post_strings(post)
     return None
 
@@ -125,3 +139,11 @@ def add_post(post: dict, posts: list):
     if is_valid_post:
         return is_valid_post
     return None
+
+
+def test_to_initialise():
+    """Test to initialise the json file"""
+    check_version(1.0)
+    # data = load_json()
+    sample_posts()
+    add_new_keys_in_posts("date", 0)

@@ -21,8 +21,8 @@ POSTS = [
     {"id": 1, "title": "abcdef", "content": "zwyt."},
     {"id": 2, "title": "dcba", "content": "twu"},
 ]
-VERSION = {"0": POSTS, "1.0": load_json(1.0), "1.1": load_json(1.1)}
 CHOSEN = 1.1
+VERSION = {"0": POSTS, "1.0": load_json, "1.1": load_json}
 
 
 # Attention here !!!
@@ -60,7 +60,7 @@ def get_posts():
     version = CHOSEN
     if version == 1.0:
         check_version(version)
-    posts = VERSION[str(version)]
+    posts = VERSION[str(version)](version)
     page = request.args.get("page", default=1, type=int)
     limit = request.args.get("limit", default=20, type=int)
     start_index = (page - 1) * limit
@@ -100,8 +100,8 @@ def search_posts():
     """Search posts by title or content."""
     if CHOSEN == 0:
         posts = VERSION[str(CHOSEN)]
-    if CHOSEN == 1.0:
-        data = VERSION[str(CHOSEN)]
+    if CHOSEN > 1.0:
+        data = VERSION[str(CHOSEN)](CHOSEN)
         posts = data["posts"]
     posts = lower_posts_strings(posts)
     title = request.args.get("title", "").strip().lower()
@@ -128,9 +128,10 @@ def handle_posts():
     if CHOSEN == 0:
         posts = VERSION[str(CHOSEN)]
         flag = False
-    if CHOSEN == 1.0:
-        data = VERSION[str(CHOSEN)]
+    else:
         flag = True
+    if CHOSEN > 1.0:
+        data = VERSION[str(CHOSEN)](CHOSEN)
         posts = data["posts"]
     received_data = request.get_json()
     post = add_post(received_data, posts)
@@ -148,9 +149,10 @@ def delete_post(post_id):
     if CHOSEN == 0:
         posts = VERSION[str(CHOSEN)]
         flag = False
-    if CHOSEN == 1.0:
-        data = VERSION[str(CHOSEN)]
+    else:
         flag = True
+    if CHOSEN > 1.0:
+        data = VERSION[str(CHOSEN)](CHOSEN)
         posts = data["posts"]
     post = next((post for post in posts if post["id"] == post_id), None)
     if post:
@@ -167,8 +169,8 @@ def update_post(post_id):
     if CHOSEN == 0:
         posts = VERSION[str(CHOSEN)]
         flag = False
-    if CHOSEN == 1.0:
-        data = VERSION[str(CHOSEN)]
+    if CHOSEN > 1.0:
+        data = VERSION[str(CHOSEN)](CHOSEN)
         flag = True
         posts = data["posts"]
     received_post = request.get_json()

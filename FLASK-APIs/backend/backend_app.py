@@ -1,7 +1,7 @@
 """Api for the backend app."""
 from flask import Flask, jsonify, request
 from flask_cors import CORS
-from backend_methods import add_post, validate_post
+from backend_methods import add_post, validate_post, load_json, check_version
 
 # from flask_limiter import Limiter
 # from flask_limiter.util import get_remote_address
@@ -17,6 +17,7 @@ POSTS = [
     {"id": 1, "title": "abcdef", "content": "zwyt."},
     {"id": 2, "title": "dcba", "content": "twu"},
 ]
+VERSION = {"0": POSTS, "1.0": load_json()}
 
 
 # Attention here !!!
@@ -41,33 +42,49 @@ def lower_posts_strings(posts: list):
 
 @app.route("/api/posts", methods=["GET"])
 # @limiter.limit("5 per minute")
-def get_books():
+def get_posts():
     """Get all posts."""
+    version = 0
+    if version > 0:
+        check_version(1.0)
+    posts = VERSION[str(version)]
     page = request.args.get("page", default=1, type=int)
     limit = request.args.get("limit", default=20, type=int)
     start_index = (page - 1) * limit
     end_index = page * limit
-    boolean = {"asc": False, "desc": True}
     sort = request.args.get("sort", "").strip().lower()
     direction = request.args.get("direction", "").strip().lower()
-    if sort or direction:
-        if direction.strip().lower() in ("asc", "desc") and sort.strip().lower() in (
-            "title",
-            "content",
-            "id",
-        ):
+    direct = {"asc": False, "desc": True}
+    if version == 0:
+        keys = {"title": "title", "content": "content", "id": "id"}
+        if sort in keys and direction in direct:
             return jsonify(
-                sorted(POSTS, key=lambda post: post[sort], reverse=boolean[direction])
+                sorted(
+                    posts,
+                    key=lambda post: post[keys[sort]],
+                    reverse=direct[direction],
+                )
             )
         raise CustomError("Invalid sort or direction", 400)
-
-    return jsonify(POSTS[start_index:end_index])
+    if version == 1.0:
+        keys = list(posts["posts"][0].keys())
+        if sort in keys and direction in direct:
+            return jsonify(
+                sorted(
+                    posts,
+                    key=lambda post: post[keys[sort]],
+                    reverse=direct[direction],
+                )
+            )
+        raise CustomError("Invalid sort or direction", 400)
+    return jsonify(posts[start_index:end_index])
 
 
 @app.route("/api/posts/search", methods=["GET"])
 def search_posts():
     """Search posts by title or content."""
-    posts = lower_posts_strings(POSTS)
+    posts = load_json()
+    posts = lower_posts_strings(posts)
     title = request.args.get("title", "").strip().lower()
     content = request.args.get("content", "").strip().lower()
     if title and content:
@@ -89,36 +106,39 @@ def search_posts():
 @app.route("/api/posts", methods=["POST"])
 def handle_posts():
     """Add a new post if post is valid."""
+    posts = load_json()
     received_data = request.get_json()
-    post = add_post(received_data, POSTS)
+    post = add_post(received_data, posts)
     if post:
-        POSTS.append(post)
-        return jsonify(POSTS)
+        posts.append(post)
+        return jsonify(posts)
     raise CustomError("Bad Data Structure for POST", 400)
 
 
 @app.route("/api/posts/<int:post_id>", methods=["DELETE"])
 def delete_post(post_id):
     """Delete post by id."""
-    post = next((post for post in POSTS if post["id"] == post_id), None)
+    posts = load_json()
+    post = next((post for post in posts if post["id"] == post_id), None)
     if post:
-        POSTS.remove(post)
-        return jsonify(POSTS)
+        posts.remove(post)
+        return jsonify(posts)
     raise CustomError("Invalid DELETE request", 404)
 
 
 @app.route("/api/posts/<int:post_id>", methods=["PUT"])
 def update_post(post_id):
     """Update post by id."""
+    posts = load_json()
     received_post = request.get_json()
-    valid_post = validate_post(received_post, POSTS)
-    post = next((post for post in POSTS if post["id"] == post_id), None)
+    valid_post = validate_post(received_post, posts)
+    post = next((post for post in posts if post["id"] == post_id), None)
     if post and valid_post:
         valid_post["id"] = post_id
-        pop_post = POSTS.pop(POSTS.index(post))
+        pop_post = posts.pop(posts.index(post))
         del pop_post
-        POSTS.append(valid_post)
-        return jsonify(POSTS)
+        posts.append(valid_post)
+        return jsonify(posts)
     raise CustomError("PUT object either invalid or id could not find", 404)
 
 

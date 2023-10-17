@@ -143,11 +143,11 @@ def search_posts():
     # any invalid key in request args will be returned empty list
     if any(key not in keys for key in valid_query) and len(valid_query) > 0:
         return jsonify([])
-    filtered_posts = [
-        post
-        for post in posts
-        if all(post.get(key) == valid_query[key] for key in valid_query)
-    ]
+    filtered_posts = []
+    for post in posts:
+        for key in valid_query:
+            if post.get(key) == valid_query[key]:
+                filtered_posts.append(post)
     return jsonify(filtered_posts)
 
 

@@ -65,6 +65,16 @@ def page_view(star, end, data: dict or list):
     return jsonify(data["posts"][star:end])
 
 
+def format_common_keys(queries: dict, keys: list):
+    """Format request args accordingly to the values in the posts"""
+    common_params = {
+        key: value.strip().title()
+        for key, value in queries.items()
+        if any(key in keys for key in queries) and isinstance(value, str)
+    }
+    return common_params
+
+
 @app.route("/api/posts", methods=["GET"])
 # @limiter.limit("5 per minute")
 def get_posts():
@@ -87,11 +97,8 @@ def get_posts():
     external_keys = ["sort", "direction", "page", "limit"]
     exists_params = {**request.args}
     all_valid_keys = keys + external_keys + list(direction.keys())
-    exists_params = {
-        key: value.strip().title()
-        for key, value in exists_params.items()
-        if any(key in keys for key in exists_params) and isinstance(value, str)
-    }
+    exists_params = format_common_keys(exists_params, keys)
+    # while request args has some value but none of them is valid
     if (
         not any(key in all_valid_keys for key in exists_params.keys())
         and len(exists_params) > 0
@@ -128,23 +135,20 @@ def search_posts():
     if CHOSEN > 1.0:
         data = VERSION[str(CHOSEN)](CHOSEN)
         posts = data["posts"]
-    posts = lower_posts_strings(posts)
-    title = request.args.get("title", "").strip().lower()
-    content = request.args.get("content", "").strip().lower()
-    if title and content:
-        filtered_posts = [
-            post
-            for post in posts
-            if title in post["title"] or content in post["content"]
-        ]
-        return jsonify(filtered_posts)
-    if title == "" and content:
-        filtered_posts = [post for post in posts if content in post["content"]]
-        return jsonify(filtered_posts)
-    if title and content == "":
-        filtered_posts = [post for post in posts if title in post["title"]]
-        return jsonify(filtered_posts)
-    return []
+    queries = {**request.args}
+    keys = list(posts[0].keys())
+    queries = format_common_keys(queries, keys)
+    valid_query = {k: v for k, v in queries.items() if v != ""}
+    # all existes posts key can be used for search
+    # any invalid key in request args will be returned empty list
+    if any(key not in keys for key in valid_query) and len(valid_query) > 0:
+        return jsonify([])
+    filtered_posts = [
+        post
+        for post in posts
+        if all(post.get(key) == valid_query[key] for key in valid_query)
+    ]
+    return jsonify(filtered_posts)
 
 
 @app.route("/api/posts", methods=["POST"])

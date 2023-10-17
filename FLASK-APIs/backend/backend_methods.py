@@ -4,6 +4,9 @@ import json
 import random
 import string
 from datetime import datetime, timedelta
+from faker import Faker
+
+fake = Faker()
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 FOLDER_PATH = os.path.join(SCRIPT_DIR, "STORAGE")
@@ -67,14 +70,20 @@ def check_version(version: float):
         save_json(initilization)
         print(f"File {FILE_PATH} created")
     exists_data = read_json()
-    if exists_data.get("version") != version:
+    if version == 1.0 and exists_data.get("version") != version:
         exists_data["version"] = version
-        save_json(exists_data)
+        create_test_posts(version)
         print(f"Version is updataed to {version}")
     else:
         print(f"Version is up to date {version}")
-    if version == 1.1:
-        add_new_keys_in_posts("date", generate_random_date)
+    if version == 1.1 and exists_data.get("version") != version:
+        exists_data["version"] = version
+        add_new_keys_in_posts("date", generate_random_date, exists_data)
+        print(f"Version is updataed to {version}")
+    if version == 1.2 and exists_data.get("version") != version:
+        exists_data["version"] = version
+        add_new_keys_in_posts("author", add_fake_authors, exists_data)
+        print(f"Version is updataed to {version}")
 
 
 def generate_random_word(length: int) -> str:
@@ -83,39 +92,43 @@ def generate_random_word(length: int) -> str:
     return "".join(random.choice(characters) for _ in range(length))
 
 
-def random_words():
+def random_words(num):
     """Sample posts."""
-    for i in range(100):
+    for i in range(num):
         title = generate_random_word(5)
         content = generate_random_word(10)
         _id = i + 1
         yield {"id": _id, "title": title, "content": content}
 
 
-def create_test_posts(version: float):
+def create_test_posts(version: float, num: int = 20):
     """Creates a new dictionary of dictionaryies in the format
     {"version": version, "posts": posts}. Overwrites the existing
     Args:
         version (float): _description_
     """
     posts = []
-    for post in random_words():
+    for post in random_words(num):
         posts.append(post)
     save_json({"version": version, "posts": posts})
     check_version(version)
 
 
-def add_new_keys_in_posts(key, value):
+def add_fake_authors():
+    """add fake authors"""
+    return fake.name()
+
+
+def add_new_keys_in_posts(key, value, data):
     """add new key in dictionaries of post in exists data set
     Args:
         key (str): key name
         value (func): appropiate function to create value
     """
-    dataset = read_json()
-    if len(dataset["posts"]) > 0:
-        generator = ({**d, key: value()} for d in dataset["posts"])
-        dataset["posts"] = list(generator)
-        save_json(dataset)
+    if len(data["posts"]) > 0:
+        generator = ({**d, key: value()} for d in data["posts"])
+        data["posts"] = list(generator)
+        save_json(data)
 
 
 def generate_new_id(posts: list):
@@ -171,9 +184,11 @@ def add_post(post: dict, posts: list):
 
 
 def test_to_initialise():
-    """Test to initialise the json file"""
-    version = 1.1
-    create_test_posts(version)
+    """Test to initialise the json file
+    avaialble versions are 1.0, 1.1, 1.2"""
+    version = 1.2
+    # create_test_posts(version)
+    check_version(version)
 
 
-test_to_initialise()
+# test_to_initialise()

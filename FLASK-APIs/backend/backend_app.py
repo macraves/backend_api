@@ -1,8 +1,12 @@
 """Api for the backend app.
 version control applied. in VERSION dict show available version
-0 is the first version where POSTS object is used
-1.0 is the second version where JSON file is used 100 of sample generated randomly
-Related functions are backend_methods.py"""
+0 is the first version where global POSTS object is used
+1.0 is the second version where JSON file is used given number of sample generated randomly
+1.1 adds date stamp to the posts
+1.2 adds author to the posts
+Related functions are backend_methods.py
+!!!! limiter package gives error, still workin on it"""
+
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from backend_methods import add_post, validate_post, load_json, check_version, save_json
@@ -21,8 +25,16 @@ POSTS = [
     {"id": 1, "title": "abcdef", "content": "zwyt."},
     {"id": 2, "title": "dcba", "content": "twu"},
 ]
+
+
+def global_posts(version):
+    """global posts"""
+    if version == 0:
+        return POSTS
+
+
 CHOSEN = 1.1
-VERSION = {"0": POSTS, "1.0": load_json, "1.1": load_json}
+VERSION = {"0": global_posts, "1.0": load_json, "1.1": load_json}
 
 
 # Attention here !!!
@@ -53,51 +65,62 @@ def page_view(star, end, data: dict or list):
     return jsonify(data["posts"][star:end])
 
 
+# def are_there_comman_param(params, keys):
+#     """Validate parameters"""
+#     valid_params = keys + ["sort", "direction", "page", "limit"]
+#     return all(key in valid_params for key in params.keys())
+
+
 @app.route("/api/posts", methods=["GET"])
 # @limiter.limit("5 per minute")
 def get_posts():
-    """Get all posts."""
+    """Get all posts. It represents how to do version control
+    unnecessary to at version variable but it gives general idea"""
     version = CHOSEN
-    if version == 1.0:
+    if version == 0:
+        posts = VERSION[str(version)](version)
+    elif version > 0:
         check_version(version)
-    posts = VERSION[str(version)](version)
+        data = VERSION[str(version)](version)
+        posts = data["posts"]
     page = request.args.get("page", default=1, type=int)
-    limit = request.args.get("limit", default=20, type=int)
+    limit = request.args.get("limit", default=10, type=int)
     start_index = (page - 1) * limit
     end_index = page * limit
-    sort = request.args.get("sort", "").strip().lower()
-    direction = request.args.get("direction", "").strip().lower()
-    direct = {"asc": False, "desc": True}
-    if version == 0:
-        keys = {"title": "title", "content": "content", "id": "id"}
-        if sort and direction:
-            if sort in keys and direction in direct:
-                return jsonify(
-                    sorted(
-                        posts,
-                        key=lambda post: post[keys[sort]],
-                        reverse=direct[direction],
-                    )
-                )
-            raise CustomError("Invalid sort or direction", 400)
-    if version == 1.0:
-        if sort and direction:
-            keys = list(posts["posts"][0].keys())
-            if sort in keys and direction in direct:
-                return jsonify(
-                    sorted(
-                        posts,
-                        key=lambda post: post[keys[sort]],
-                        reverse=direct[direction],
-                    )
-                )
-            raise CustomError("Invalid sort or direction", 400)
+    # Current post exists keys
+    keys = list(posts[0].keys())
+    direction = {"asc": False, "desc": True}
+    external_keys = ["sort", "direction"]
+    exists_params = {**request.args}
+    all_valid_keys = keys + external_keys + list(direction.keys())
+    if not any(key in all_valid_keys for key in exists_params.keys()):
+        raise CustomError("Invalid GET request", 400)
+    # First shape the posts list with external parameters
+    if all(key in external_keys for key in exists_params.keys()):
+        if "sort" in exists_params:
+            sort = exists_params["sort"]
+            posts = sorted(
+                posts,
+                key=lambda post: post[sort],
+                reverse=direction.get(
+                    exists_params.get("direction", "asc").strip().lower()
+                ),
+            )
+            # wheb we get here posts list is sorted
+    # If there is / are common parameter(s) in the request
+    if all(key in keys for key in exists_params.keys()):
+        posts = [
+            post
+            for post in posts
+            if all(post.get(key) == exists_params[key] for key in exists_params)
+        ]
     return page_view(start_index, end_index, posts)
 
 
 @app.route("/api/posts/search", methods=["GET"])
 def search_posts():
     """Search posts by title or content."""
+
     if CHOSEN == 0:
         posts = VERSION[str(CHOSEN)]
     if CHOSEN > 1.0:
@@ -135,6 +158,7 @@ def handle_posts():
         posts = data["posts"]
     received_data = request.get_json()
     post = add_post(received_data, posts)
+
     if post:
         posts.append(post)
         if flag:

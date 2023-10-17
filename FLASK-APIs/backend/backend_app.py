@@ -33,8 +33,8 @@ def global_posts(version):
         return POSTS
 
 
-CHOSEN = 1.1
-VERSION = {"0": global_posts, "1.0": load_json, "1.1": load_json}
+CHOSEN = 1.2
+VERSION = {"0": global_posts, "1.0": load_json, "1.1": load_json, "1.2": load_json}
 
 
 # Attention here !!!
@@ -93,7 +93,10 @@ def get_posts():
     external_keys = ["sort", "direction"]
     exists_params = {**request.args}
     all_valid_keys = keys + external_keys + list(direction.keys())
-    if not any(key in all_valid_keys for key in exists_params.keys()):
+    if (
+        not any(key in all_valid_keys for key in exists_params.keys())
+        and len(exists_params) > 0
+    ):
         raise CustomError("Invalid GET request", 400)
     # First shape the posts list with external parameters
     if all(key in external_keys for key in exists_params.keys()):
@@ -157,7 +160,8 @@ def handle_posts():
         data = VERSION[str(CHOSEN)](CHOSEN)
         posts = data["posts"]
     received_data = request.get_json()
-    post = add_post(received_data, posts)
+
+    post = add_post(received_data, data)
 
     if post:
         posts.append(post)
@@ -198,7 +202,7 @@ def update_post(post_id):
         flag = True
         posts = data["posts"]
     received_post = request.get_json()
-    valid_post = validate_post(received_post, posts)
+    valid_post = validate_post(received_post, data)
     post = next((post for post in posts if post["id"] == post_id), None)
     if post and valid_post:
         valid_post["id"] = post_id

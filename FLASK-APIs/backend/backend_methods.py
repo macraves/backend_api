@@ -61,7 +61,8 @@ def generate_random_date():
 
 
 def check_version(version: float):
-    """Initializes the json file or update its version."""
+    """Initializes the json file or update its version.
+    Needed the run this script once independently to create the json file"""
     initilization = {"version": version, "posts": []}
     if not os.path.exists(FOLDER_PATH):
         os.makedirs(FOLDER_PATH)
@@ -138,18 +139,23 @@ def generate_new_id(posts: list):
     return 1
 
 
-def format_post_strings(post: dict, posts: list):
+def format_post_strings(post: dict, data: list):
     """Ignores whitespaces on key value pairs
     and applies capitalize method"""
-    sample = list(posts[0].keys())
-    for key in sample:
-        if key != "id" and post.get(key):
+    for key in post:
+        if key != "id" and post.get(key) is not None:
             post[key] = post[key].strip().capitalize()
-        else:
-            post[key] = "Anonymous"
+        if key != "id" and post.get(key) is None:
+            post[key] = "Unknown"
+    current_version = data.get("version")
+    if current_version > 1.1 and post.get("date") is None:
+        post["date"] = datetime.now().strftime("%Y-%m-%d")
+    if data.get("version") == 1.2 and post.get("author") is None:
+        post["author"] = "Anonymous"
+    return post
 
 
-def validate_post(post: dict, posts: list) -> dict or None:
+def validate_post(post: dict, data: list) -> dict or None:
     """In the given post firstly get tested for existance of keys "title" and "content"
     secondly checks if "id" is presenet and if it is present checks if it is unique
     Args:
@@ -163,23 +169,25 @@ def validate_post(post: dict, posts: list) -> dict or None:
         # Check if post has "id" key
         if post.get("id") is None:
             # Generate a new id
-            post["id"] = generate_new_id(posts)
-            return format_post_strings(post, posts)
+            post["id"] = generate_new_id(data["posts"])
+            return format_post_strings(post, data)
         else:
             # In here post has "id" key
             if isinstance(post.get("id"), int):
                 post_id = post.get("id")
-                if next((post for post in posts if post["id"] == post_id), None):
+                if next(
+                    (post for post in data["posts"] if post["id"] == post_id), None
+                ):
                     # Get new id
-                    post["id"] = generate_new_id(posts=posts)
-            return format_post_strings(post, posts)
+                    post["id"] = generate_new_id(posts=data["posts"])
+            return format_post_strings(post, data)
     return None
 
 
-def add_post(post: dict, posts: list):
+def add_post(post: dict, data: list):
     """Checks if it is valid
     add a unique id and return the post"""
-    is_valid_post = validate_post(post, posts)
+    is_valid_post = validate_post(post, data)
     if is_valid_post:
         return is_valid_post
     return None

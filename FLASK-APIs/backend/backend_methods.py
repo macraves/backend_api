@@ -144,7 +144,7 @@ def format_post_strings(post: dict, data: list):
     and applies capitalize method"""
     for key in post:
         if key != "id" and post.get(key) is not None:
-            post[key] = post[key].strip().capitalize()
+            post[key] = post[key].strip().title()
         if key != "id" and post.get(key) is None:
             post[key] = "Unknown"
     current_version = data.get("version")

@@ -65,12 +65,6 @@ def page_view(star, end, data: dict or list):
     return jsonify(data["posts"][star:end])
 
 
-# def are_there_comman_param(params, keys):
-#     """Validate parameters"""
-#     valid_params = keys + ["sort", "direction", "page", "limit"]
-#     return all(key in valid_params for key in params.keys())
-
-
 @app.route("/api/posts", methods=["GET"])
 # @limiter.limit("5 per minute")
 def get_posts():
@@ -93,6 +87,11 @@ def get_posts():
     external_keys = ["sort", "direction", "page", "limit"]
     exists_params = {**request.args}
     all_valid_keys = keys + external_keys + list(direction.keys())
+    exists_params = {
+        key: value.strip().title()
+        for key, value in exists_params.items()
+        if any(key in keys for key in exists_params) and isinstance(value, str)
+    }
     if (
         not any(key in all_valid_keys for key in exists_params.keys())
         and len(exists_params) > 0

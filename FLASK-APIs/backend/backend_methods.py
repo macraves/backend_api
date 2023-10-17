@@ -138,13 +138,15 @@ def generate_new_id(posts: list):
     return 1
 
 
-def format_post_strings(post: dict):
+def format_post_strings(post: dict, posts: list):
     """Ignores whitespaces on key value pairs
     and applies capitalize method"""
-    title = post.get("title", "").strip().capitalize()
-    content = post.get("content", "").strip().capitalize()
-    post_id = post.get("id")
-    return {"id": post_id, "title": title, "content": content}
+    sample = list(posts[0].keys())
+    for key in sample:
+        if key != "id" and post.get(key):
+            post[key] = post[key].strip().capitalize()
+        else:
+            post[key] = "Anonymous"
 
 
 def validate_post(post: dict, posts: list) -> dict or None:
@@ -162,7 +164,7 @@ def validate_post(post: dict, posts: list) -> dict or None:
         if post.get("id") is None:
             # Generate a new id
             post["id"] = generate_new_id(posts)
-            return format_post_strings(post)
+            return format_post_strings(post, posts)
         else:
             # In here post has "id" key
             if isinstance(post.get("id"), int):
@@ -170,7 +172,7 @@ def validate_post(post: dict, posts: list) -> dict or None:
                 if next((post for post in posts if post["id"] == post_id), None):
                     # Get new id
                     post["id"] = generate_new_id(posts=posts)
-            return format_post_strings(post)
+            return format_post_strings(post, posts)
     return None
 
 

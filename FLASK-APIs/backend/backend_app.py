@@ -90,7 +90,7 @@ def get_posts():
     # Current post exists keys
     keys = list(posts[0].keys())
     direction = {"asc": False, "desc": True}
-    external_keys = ["sort", "direction"]
+    external_keys = ["sort", "direction", "page", "limit"]
     exists_params = {**request.args}
     all_valid_keys = keys + external_keys + list(direction.keys())
     if (

@@ -1,3 +1,4 @@
 logging
 flask
 Flask-Limiter
+faker

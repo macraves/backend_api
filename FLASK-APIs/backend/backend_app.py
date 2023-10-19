@@ -9,7 +9,14 @@ Related functions are backend_methods.py
 
 from flask import Flask, jsonify, request
 from flask_cors import CORS
-from backend_methods import add_post, validate_post, load_json, check_version, save_json
+from backend_methods import (
+    add_post,
+    validate_post,
+    load_json,
+    check_version,
+    save_json,
+    datetime,
+)
 
 # from flask_limiter import Limiter
 # from flask_limiter.util import get_remote_address
@@ -49,30 +56,60 @@ class CustomError(Exception):
         self.status_code = status_code
 
 
-def lower_posts_strings(posts: list):
-    """Ignores whitespaces and applies title method to run
-    in method for stirngs"""
+def titilized_post(posts: list):
+    """Ignores whitespaces and applies title method
+    on json files posts"""
+    titlized = []
     for post in posts:
-        post["title"] = post["title"].strip().lower()
-        post["content"] = post["content"].strip().lower()
-    return posts
+        for key in post:
+            if key not in ("id", "date"):
+                post[key] = post.get(key, "Unknown").title().strip()
+        titlized.append(post)
+    return titlized
 
 
 def page_view(star, end, data: dict or list):
-    """limitation of the page view"""
+    """limitation of the page view and in a case global POSTS
+    usage"""
     if isinstance(data, list):
         return jsonify(data[star:end])
     return jsonify(data["posts"][star:end])
 
 
-def format_common_keys(queries: dict, keys: list):
-    """Format request args accordingly to the values in the posts"""
-    common_params = {
-        key: value.strip().title()
-        for key, value in queries.items()
-        if any(key in keys for key in queries) and isinstance(value, str)
-    }
-    return common_params
+def format_common_key_value(queries: dict, keys: list):
+    """Format request args values accordingly to the values in the posts"""
+    formattables = list(filter(lambda x: x not in ("id", "date"), keys))
+    formatted = {}
+    for key, val in queries.items():
+        if key in formattables:
+            val = val.title().strip()
+        formatted[key] = val
+    return formatted
+
+
+def sort_without_date(sort, posts, direction, exsits_params):
+    """sort without date, default direction value is set (asc)"""
+    if sort == "date":
+        posts = titilized_post(posts)
+        posts = sorted(
+            posts,
+            key=lambda post: post[sort],
+            reverse=direction.get(
+                exsits_params.get("direcection", "asc").strip().lower()
+            ),
+        )
+    return posts
+
+
+def sort_with_date(sort, posts, direction, exists_params):
+    """Date string has to be converted time object. String date format
+    can not be accuaretly sorted. Default direction value is set (asc)"""
+    posts = sorted(
+        posts,
+        key=lambda post: datetime.strptime(post[sort], "%Y-%m-%d"),
+        reverse=direction.get(exists_params.get("direction", "asc").strip().lower()),
+    )
+    return posts
 
 
 @app.route("/api/posts", methods=["GET"])
@@ -87,6 +124,8 @@ def get_posts():
         check_version(version)
         data = VERSION[str(version)](version)
         posts = data["posts"]
+        # posts string values needs to match with request args values
+        posts = titilized_post(posts)
     page = request.args.get("page", default=1, type=int)
     limit = request.args.get("limit", default=10, type=int)
     start_index = (page - 1) * limit
@@ -97,32 +136,38 @@ def get_posts():
     external_keys = ["sort", "direction", "page", "limit"]
     exists_params = {**request.args}
     all_valid_keys = keys + external_keys + list(direction.keys())
-    exists_params = format_common_keys(exists_params, keys)
-    # while request args has some value but none of them is valid
+    exists_params = format_common_key_value(exists_params, keys)
+    # while request args has key(s)if any of is not valid
     if (
-        not any(key in all_valid_keys for key in exists_params.keys())
+        not any(key in all_valid_keys for key in exists_params)
         and len(exists_params) > 0
     ):
-        raise CustomError("Invalid GET request", 400)
+        raise CustomError("Invalid GET parameter(s) request", 400)
     # First shape the posts list with external parameters
-    if all(key in external_keys for key in exists_params.keys()):
-        if "sort" in exists_params:
-            sort = exists_params["sort"]
-            posts = sorted(
-                posts,
-                key=lambda post: post[sort],
-                reverse=direction.get(
-                    exists_params.get("direction", "asc").strip().lower()
-                ),
-            )
-            # wheb we get here posts list is sorted
-    # If there is / are common parameter(s) in the request
-    if all(key in keys for key in exists_params.keys()):
-        posts = [
-            post
-            for post in posts
-            if all(post.get(key) == exists_params[key] for key in exists_params)
-        ]
+    if any(key in external_keys for key in exists_params):
+        sort = exists_params.get("sort", "id")  # default sort is id
+        if sort != "date":
+            posts = sort_without_date(sort, posts, direction, exists_params)
+        if sort == "date":
+            posts = sort_with_date(sort, posts, direction, exists_params)
+
+        # When we get here posts list is sorted with sort value given parameters
+    # If there is / are common parameter(s) is used, extract them from the list
+    post_keys = list(
+        filter(lambda x: x in ("title", "author", "content"), exists_params)
+    )
+    posts = [
+        post
+        for key in post_keys
+        for post in posts
+        if post.get(key) == exists_params.get(key)
+    ]
+    # posts = []
+    # for post in posts:
+    #     for key in post_keys:
+    #         if post[key] == exists_params[key]:
+    #             filtered.append(post)
+
     return page_view(start_index, end_index, posts)
 
 
@@ -137,17 +182,19 @@ def search_posts():
         posts = data["posts"]
     queries = {**request.args}
     keys = list(posts[0].keys())
-    queries = format_common_keys(queries, keys)
-    valid_query = {k: v for k, v in queries.items() if v != ""}
+    queries = format_common_key_value(queries, keys)
+    # eliminating empty values ony get keys with values
+    given_params = {k: v for k, v in queries.items() if v != ""}
     # all existes posts key can be used for search
     # any invalid key in request args will be returned empty list
-    if any(key not in keys for key in valid_query) and len(valid_query) > 0:
+    if any(key not in keys for key in given_params) and len(given_params) > 0:
         return jsonify([])
-    filtered_posts = []
-    for post in posts:
-        for key in valid_query:
-            if post.get(key) == valid_query[key]:
-                filtered_posts.append(post)
+    filtered_posts = [
+        post
+        for key in given_params
+        for post in posts
+        if post.get(key) == given_params[key]
+    ]
     return jsonify(filtered_posts)
 
 
@@ -206,9 +253,11 @@ def update_post(post_id):
         posts = data["posts"]
     received_post = request.get_json()
     valid_post = validate_post(received_post, data)
+    if valid_post is None:
+        raise CustomError("PUT object has invalid structure", 404)
+    valid_post["id"] = post_id
     post = next((post for post in posts if post["id"] == post_id), None)
     if post and valid_post:
-        valid_post["id"] = post_id
         pop_post = posts.pop(posts.index(post))
         del pop_post
         posts.append(valid_post)

@@ -141,10 +141,13 @@ def generate_new_id(posts: list):
 
 def format_post_strings(post: dict, data: list):
     """Ignores whitespaces on key value pairs
-    and applies capitalize method"""
+    and applies title method"""
+    valid_keys = ["title", "content", "author", "date", "id"]
+    if any(key not in valid_keys for key in post.keys()):
+        return None
     for key in post:
         if key != "id" and post.get(key) is not None:
-            post[key] = post[key].strip().title()
+            post[key] = post[key].title().strip()
         if key != "id" and post.get(key) is None:
             post[key] = "Unknown"
     current_version = data.get("version")
@@ -167,21 +170,22 @@ def validate_post(post: dict, data: list) -> dict or None:
     """
     if isinstance(post, dict) and "title" in post and "content" in post:
         # Check if post has "id" key
+        post = format_post_strings(post, data)
+        if not post:
+            return None
         if post.get("id") is None:
             # Generate a new id
             post["id"] = generate_new_id(data["posts"])
-            return format_post_strings(post, data)
+            return post
         else:
             # In here post has "id" key
-            if isinstance(post.get("id"), int):
-                post_id = post.get("id")
-                if next(
-                    (post for post in data["posts"] if post["id"] == post_id), None
-                ):
-                    # Get new id
-                    post["id"] = generate_new_id(posts=data["posts"])
+            if not isinstance(post.get("id"), int):
+                return None
+            post_id = post.get("id")
+            if next((post for post in data["posts"] if post["id"] == post_id), None):
+                # Get new id
+                post["id"] = generate_new_id(posts=data["posts"])
             return format_post_strings(post, data)
-    return None
 
 
 def add_post(post: dict, data: list):

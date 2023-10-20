@@ -1,0 +1,1 @@
+The program is designed to perform CRUD work on the API. Since I expected that the given project would change every time, I tried to add version control. It was really fun to encounter many tutorial problems in terms of version control. I can't say it was a good control, but I got a lot of ideas to improve it.

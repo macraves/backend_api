@@ -40,8 +40,15 @@ def global_posts(version):
         return POSTS
 
 
-CHOSEN = 1.2
+CHOSEN = 1.0
 VERSION = {"0": global_posts, "1.0": load_json, "1.1": load_json, "1.2": load_json}
+
+if CHOSEN == 1.0:
+    version_keys = ["id", "title", "content"]
+if CHOSEN == 1.1:
+    version_keys = ["id", "title", "content", "date"]
+if CHOSEN == 1.2:
+    version_keys = ["id", "title", "content", "date", "author"]
 
 
 # Attention here !!!
@@ -83,6 +90,11 @@ def format_common_key_value(queries: dict, keys: list):
     for key, val in queries.items():
         if key in formattables:
             val = val.title().strip()
+        if key == "id":
+            try:
+                val = int(val)
+            except ValueError as value_error:
+                raise CustomError(value_error, 400) from value_error
         formatted[key] = val
     return formatted
 
@@ -117,26 +129,27 @@ def sort_with_date(sort, posts, direction, exists_params):
 def get_posts():
     """Get all posts. It represents how to do version control
     unnecessary to at version variable but it gives general idea"""
+
     version = CHOSEN
     if version == 0:
         posts = VERSION[str(version)](version)
-    elif version > 0:
+    if version >= 1.0:
         check_version(version)
         data = VERSION[str(version)](version)
         posts = data["posts"]
         # posts string values needs to match with request args values
         posts = titilized_post(posts)
+
     page = request.args.get("page", default=1, type=int)
     limit = request.args.get("limit", default=10, type=int)
     start_index = (page - 1) * limit
     end_index = page * limit
-    # Current post exists keys
-    keys = list(posts[0].keys())
+
     direction = {"asc": False, "desc": True}
     external_keys = ["sort", "direction", "page", "limit"]
     exists_params = {**request.args}
-    all_valid_keys = keys + external_keys + list(direction.keys())
-    exists_params = format_common_key_value(exists_params, keys)
+    all_valid_keys = version_keys + external_keys + list(direction.keys())
+    exists_params = format_common_key_value(exists_params, version_keys)
     # while request args has key(s)if any of is not valid
     if (
         not any(key in all_valid_keys for key in exists_params)
@@ -154,20 +167,17 @@ def get_posts():
         # When we get here posts list is sorted with sort value given parameters
     # If there is / are common parameter(s) is used, extract them from the list
     post_keys = list(
-        filter(lambda x: x in ("title", "author", "content"), exists_params)
+        filter(lambda x: x in ("title", "author", "content", "id"), exists_params)
     )
-    posts = [
-        post
-        for key in post_keys
-        for post in posts
-        if post.get(key) == exists_params.get(key)
-    ]
-    # posts = []
-    # for post in posts:
-    #     for key in post_keys:
-    #         if post[key] == exists_params[key]:
-    #             filtered.append(post)
+    if post_keys:
+        posts = [
+            post
+            for key in post_keys
+            for post in posts
+            if post.get(key) == exists_params.get(key)
+        ]
 
+        return page_view(start_index, end_index, posts)
     return page_view(start_index, end_index, posts)
 
 
@@ -177,25 +187,30 @@ def search_posts():
 
     if CHOSEN == 0:
         posts = VERSION[str(CHOSEN)]
-    if CHOSEN > 1.0:
+    if CHOSEN >= 1.0:
         data = VERSION[str(CHOSEN)](CHOSEN)
         posts = data["posts"]
+        posts = titilized_post(posts)
     queries = {**request.args}
-    keys = list(posts[0].keys())
-    queries = format_common_key_value(queries, keys)
+
+    queries = format_common_key_value(queries, version_keys)
     # eliminating empty values ony get keys with values
     given_params = {k: v for k, v in queries.items() if v != ""}
     # all existes posts key can be used for search
     # any invalid key in request args will be returned empty list
-    if any(key not in keys for key in given_params) and len(given_params) > 0:
-        return jsonify([])
-    filtered_posts = [
-        post
-        for key in given_params
-        for post in posts
-        if post.get(key) == given_params[key]
-    ]
-    return jsonify(filtered_posts)
+    if given_params:
+        if (
+            any(key not in version_keys for key in given_params)
+            and len(given_params) > 0
+        ):
+            return jsonify([])
+        filtered_posts = []
+        for post in posts:
+            for key in given_params:
+                if post.get(key) == given_params[key]:
+                    filtered_posts.append(post)
+        return jsonify(filtered_posts)
+    return jsonify(posts)
 
 
 @app.route("/api/posts", methods=["POST"])
@@ -204,17 +219,17 @@ def handle_posts():
     if CHOSEN == 0:
         posts = VERSION[str(CHOSEN)]
         flag = False
-    else:
+    if CHOSEN >= 1.0:
         flag = True
-    if CHOSEN > 1.0:
         data = VERSION[str(CHOSEN)](CHOSEN)
         posts = data["posts"]
+        posts = titilized_post(posts)
     received_data = request.get_json()
 
     post = add_post(received_data, data)
 
     if post:
-        posts.append(post)
+        data["posts"].append(post)
         if flag:
             save_json(data)
         return page_view(0, 20, posts)
@@ -227,14 +242,15 @@ def delete_post(post_id):
     if CHOSEN == 0:
         posts = VERSION[str(CHOSEN)]
         flag = False
-    else:
+
+    if CHOSEN >= 1.0:
         flag = True
-    if CHOSEN > 1.0:
         data = VERSION[str(CHOSEN)](CHOSEN)
         posts = data["posts"]
+        posts = titilized_post(posts)
     post = next((post for post in posts if post["id"] == post_id), None)
     if post:
-        posts.remove(post)
+        data["posts"].remove(post)
         if flag:
             save_json(data)
         return page_view(0, 20, posts)
@@ -247,10 +263,11 @@ def update_post(post_id):
     if CHOSEN == 0:
         posts = VERSION[str(CHOSEN)]
         flag = False
-    if CHOSEN > 1.0:
+    if CHOSEN >= 1.0:
         data = VERSION[str(CHOSEN)](CHOSEN)
         flag = True
         posts = data["posts"]
+        posts = titilized_post(posts)
     received_post = request.get_json()
     valid_post = validate_post(received_post, data)
     if valid_post is None:
@@ -258,9 +275,9 @@ def update_post(post_id):
     valid_post["id"] = post_id
     post = next((post for post in posts if post["id"] == post_id), None)
     if post and valid_post:
-        pop_post = posts.pop(posts.index(post))
+        pop_post = data["posts"].pop(posts.index(post))
         del pop_post
-        posts.append(valid_post)
+        data["posts"].append(valid_post)
         if flag:
             save_json(data)
         return page_view(0, 20, posts)

@@ -1,4 +1,8 @@
-"""Backend methods for the Flask API."""
+"""Backend methods for the Flask API.
+Rules for saving post values; modify string with title method and strip
+whitespaces. If the post has no id, generate a new id. If the post has an id,
+check if the id is unique. If the post has no date, generate a new date.
+To create test posts, run this script once with create_test_post."""
 import os
 import json
 import random
@@ -23,7 +27,7 @@ def save_json(dataset: dict):
 
 
 def load_json(version: float) -> dict or None:
-    """Reads the json file"""
+    """Reads the json file and returns the dataset"""
     if not os.path.exists(FILE_PATH):
         return None
     try:
@@ -37,7 +41,7 @@ def load_json(version: float) -> dict or None:
 
 
 def read_json():
-    """Reads the json file"""
+    """Reads the json file without argumnets"""
     if not os.path.exists(FILE_PATH):
         return None
     try:
@@ -88,13 +92,13 @@ def check_version(version: float):
 
 
 def generate_random_word(length: int) -> str:
-    """Generates random words"""
+    """Generate function for random words"""
     characters = string.ascii_lowercase  # Use lowercase letters
     return "".join(random.choice(characters) for _ in range(length))
 
 
 def random_words(num):
-    """Sample posts."""
+    """Generator function to create random title and content"""
     for i in range(num):
         title = generate_random_word(5)
         content = generate_random_word(10)
@@ -102,7 +106,7 @@ def random_words(num):
         yield {"id": _id, "title": title, "content": content}
 
 
-def create_test_posts(version: float, num: int = 20):
+def create_test_posts(version: float, num: int = 5):
     """Creates a new dictionary of dictionaryies in the format
     {"version": version, "posts": posts}. Overwrites the existing
     Args:
@@ -200,9 +204,8 @@ def add_post(post: dict, data: list):
 def test_to_initialise():
     """Test to initialise the json file
     avaialble versions are 1.0, 1.1, 1.2"""
-    version = 1.2
-    # create_test_posts(version)
-    check_version(version)
+    version = 1.0
+    create_test_posts(version)
 
 
 # test_to_initialise()
